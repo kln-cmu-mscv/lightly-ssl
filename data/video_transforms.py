@@ -24,3 +24,20 @@ class ToTensor(Transform):
 			clips = torch.from_numpy(clips.reshape((H,W,-1,self.dim)).transpose((3, 2, 0, 1)))
 			# backward compatibility
 			return clips.float() / 255.0
+
+
+
+class ToARIDTensor(Transform):
+	"""Converts a numpy.ndarray (H x W x (T x C)) in the range
+	[0, 255] to a torch.FloatTensor of shape (T x C x H x W) in the range [0.0, 1.0].
+	"""
+	def __init__(self, dim=3):
+		self.dim = dim
+
+	def __call__(self, clips):
+		if isinstance(clips, np.ndarray):
+			H, W, _ = clips.shape
+			# handle numpy array
+			clips = torch.from_numpy(clips.reshape((H,W,-1,self.dim)).transpose((2, 3, 0, 1)))
+			# backward compatibility
+			return clips.float() / 255.0

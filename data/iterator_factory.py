@@ -6,10 +6,82 @@ import torch.nn as nn
 from . import video_sampler as sampler
 from . import video_transforms as transforms
 from .video_iterator import VideoIter
+from typing import List
 
-def get_arid(data_root='./dataset/ARID', clip_length=8, train_interval=2,
+import torchvision
+import torchvision.transforms as T
+
+# from lightly.data.collate import BaseCollateFunction
+
+
+class BaseCollateFunction(nn.Module):
+
+	def __init__(self, transform: torchvision.transforms.Compose):
+
+		super(BaseCollateFunction, self).__init__()
+		self.transform = transform
+
+	def forward(self, batch: List[tuple]):
+
+		batch_size = len(batch)
+
+		print(f"{batch[0][0].shape=}")
+
+		print(f"{batch_size=}")
+		
+		print(f"{batch[0][0].dtype=}")
+		# list of transformed images
+
+		# tmp = self.transform(batch[0][0]).unsqueeze_(0)
+		# print(f"{tmp.shape=}")
+
+		# print()
+		
+		for i in range(2 * batch_size):
+			print(i, batch[i % batch_size][0].shape)
+			print(i, batch[i % batch_size][0].dtype)
+
+		transforms = [self.transform(batch[i % batch_size][0]).unsqueeze(0)
+						for i in range(2 * batch_size)]
+
+		print(f"{len(transforms)=}")
+
+		for i in range(len(transforms)):
+			print(f"{transforms[i].shape=}, {batch[i % batch_size][0].shape=}")
+
+
+		# list of labels
+		labels = torch.LongTensor([item[1] for item in batch])
+		# list of filenames
+		fnames = [item[2] for item in batch]
+
+		# tuple of transforms
+		transforms = (
+			torch.cat(transforms[:batch_size], 0),
+			torch.cat(transforms[batch_size:], 0)
+		)
+
+		return transforms, labels, fnames
+
+class ARIDCollateFunction(BaseCollateFunction):
+	def __init__(self):
+		normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+		self.transform = transforms.Compose([
+										 transforms.RandomHorizontalFlip(),
+									  ])
+		super(ARIDCollateFunction, self).__init__(self.transform)
+
+class ARIDCollateFunction1(BaseCollateFunction):
+	def __init__(self):
+		normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+		self.transform = transforms.Compose([
+										 transforms.RandomHorizontalFlip(),
+									  ])
+		super(ARIDCollateFunction, self).__init__(self.transform)
+
+def get_arid_old(data_root='./dataset/ARID', clip_length=8, train_interval=2,
 			mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225],
-			seed=0, **kwargs):
+			seed=0, return_item_subpath=False, **kwargs):
 	""" data iter for ARID
 	"""
 	logging.debug("VideoIter:: clip_length = {}, interval = [train: {}], seed = {}".format(clip_length, train_interval, seed))
@@ -32,6 +104,34 @@ def get_arid(data_root='./dataset/ARID', clip_length=8, train_interval=2,
 									  aug_seed=(seed+1)),
 					  name='train',
 					  shuffle_list_seed=(seed+2),
+					  return_item_subpath=return_item_subpath
+					  )
+
+	return train
+
+def get_arid(data_root='./dataset/ARID', clip_length=8, train_interval=2,
+			mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225],
+			seed=0, return_item_subpath=False, **kwargs):
+	""" data iter for ARID
+	"""
+	logging.debug("VideoIter:: clip_length = {}, interval = [train: {}], seed = {}".format(clip_length, train_interval, seed))
+
+	normalize = transforms.Normalize(mean=mean, std=std)
+
+	train_sampler = sampler.RandomSampling(num=clip_length, interval=train_interval, speed=[1.0, 1.0], seed=(seed+0))
+	train = VideoIter(video_prefix=os.path.join(data_root, 'raw', 'train_data'),
+					  csv_list=os.path.join(data_root, 'raw', 'list_cvt', 'ARID1.1_t1_train_pub.csv'),
+					  sampler=train_sampler,
+					  force_color=True,
+					  video_transform=transforms.Compose([
+										 transforms.Resize((224, 224)), # insert a resize if needed
+										 transforms.ToARIDTensor(),
+										 normalize,
+									  ],
+									  aug_seed=(seed+1)),
+					  name='train',
+					  shuffle_list_seed=(seed+2),
+					  return_item_subpath=return_item_subpath
 					  )
 
 	return train
