@@ -12,9 +12,10 @@ import torchvision
 import dataset
 import argparse
 from data.iterator_factory import get_arid
-from data.iterator_factory import ARIDCollateFunction
+from data.collate_functions import ARIDSSLCollateFunction, ARIDCLSCollateFunction
 from network.symbol_builder import get_symbol
 from network.simclr import SimCLR_R3D_Model
+from network.classifier import Classifier
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="PyTorch Video Classification Parser")
@@ -22,13 +23,17 @@ if __name__ == "__main__":
     parser.add_argument('--data-root', default="./dataset/ARID", help="path to dataset")
     parser.add_argument('--clip-length', type=int, default=16, help="define the length of each input sample.")
     parser.add_argument('--train-frame-interval', type=int, default=2, help="define the sampling interval between frames.")
-    parser.add_argument('--batch-size', type=int, default=8, help="batch size")
+    parser.add_argument('--batch-size', type=int, default=4, help="batch size")
     parser.add_argument('--num-workers', type=int, default=8, help="batch size")
-    parser.add_argument('--end-epoch', type=int, default=2, help="maxmium number of training epoch")
+    parser.add_argument('--end-epoch', type=int, default=1000, help="maxmium number of training epoch")
     parser.add_argument('--resume-epoch', type=int, default=-1, help="resume train")
     parser.add_argument('--random-seed', type=int, default=1, help='random seed (default: 1)')
-    parser.add_argument('--gpus', type=str, default="0", help='GPU to use')
+    parser.add_argument('--gpus', type=list, default=[0,1], help='GPU to use')
     parser.add_argument('--network', type=str, default='R3D18',help="chose the base network")
+
+    # Train SSL or classifier
+    parser.add_argument('--mode', type=str, default='cls',help="Mode to train", choices =["ssl", "cls"])
+    parser.add_argument('--ssl-ckpt', type=str, default='./lightning_logs/version_4/checkpoints/epoch=124-step=28625.ckpt',help="Path to backbone ckpt file")
 
     # set args
     args = parser.parse_args()
@@ -54,7 +59,10 @@ if __name__ == "__main__":
                             return_item_subpath=True)
 
     # define collate function with different augmentation
-    collate_fn = ARIDCollateFunction()
+    if args.mode == "ssl":
+        collate_fn = ARIDSSLCollateFunction()
+    elif args.mode == "cls":
+        collate_fn = ARIDCLSCollateFunction()
 
     # define train dataloader
     dataloader_train_arid = torch.utils.data.DataLoader(
@@ -67,8 +75,25 @@ if __name__ == "__main__":
     )
 
     max_epochs = args.end_epoch
-    model = SimCLR_R3D_Model(net, max_epochs)
+
+    if args.mode == "ssl":
+        print("Training Embedding Network")
+        model = SimCLR_R3D_Model(net, max_epochs)
+        
+    elif args.mode == "cls":
+        print("Training Classifier Network")
+        ssl_model = SimCLR_R3D_Model(net, max_epochs)
+        ckpt = torch.load(args.ssl_ckpt)
+        ssl_model.load_state_dict(ckpt['state_dict'])
+        # ssl_model.eval()
+        backbone = ssl_model.backbone
+
+        model = Classifier(backbone, max_epochs, 11)
+
+
     trainer = pl.Trainer(
-        max_epochs=max_epochs, gpus=args.gpus, progress_bar_refresh_rate=100
-    )
+            max_epochs=max_epochs, gpus=args.gpus, progress_bar_refresh_rate=100
+        )
     trainer.fit(model, dataloader_train_arid)
+
+
