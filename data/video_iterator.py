@@ -140,14 +140,15 @@ class Video(object):
 
 class VideoIter(data.Dataset):
 
-	def __init__(self, video_prefix, csv_list, sampler,
+	def __init__(self, video_prefix, video_prefix_enhanced, csv_list, sampler,
 				 video_transform=None, name="<NO_NAME>", force_color=True,
-				 cached_info_path=None, return_item_subpath=False, shuffle_list_seed=None, check_video=False, tolerant_corrupted_video=None):
+				 cached_info_path=None, return_item_subpath=True, shuffle_list_seed=None, check_video=False, tolerant_corrupted_video=None):
 		super(VideoIter, self).__init__()
 		# load params
 		self.sampler = sampler
 		self.force_color = force_color
 		self.video_prefix = video_prefix
+		self.video_prefix_enhanced = video_prefix_enhanced
 		self.video_transform = video_transform
 		self.return_item_subpath = return_item_subpath
 		self.backup_item = None
@@ -167,12 +168,17 @@ class VideoIter(data.Dataset):
 	def getitem_from_raw_video(self, index):
 		# get current video info
 		v_id, label, vid_subpath, frame_count = self.video_list[index]
-		video_path = os.path.join(self.video_prefix, vid_subpath)
+		video_path = os.path.join(self.video_prefix_enhanced, vid_subpath)
+		
+		video_id = video_path.split('/')[-1]
+		vid_class = video_path.split('/')[-2]
+		video_path_enhanced = os.path.join(self.video_prefix, vid_class, video_id)
 
 		faulty_frames = []
 		successfule_trial = False
 		try:
 			with Video(vid_path=video_path) as video:
+				video_enhanced = Video(vid_path=video_path_enhanced)
 				if frame_count < 0:
 					frame_count = video.count_frames(check_validity=False)
 				for i_trial in range(20):
@@ -183,6 +189,7 @@ class VideoIter(data.Dataset):
 					prev_sampled_idxs = sampled_idxs
 					# extracting frames
 					sampled_frames = video.extract_frames(idxs=sampled_idxs, force_color=self.force_color)
+					sampled_frames_enhanced = video_enhanced.extract_frames(idxs=sampled_idxs, force_color=self.force_color)
 					if sampled_frames is None:
 						faulty_frames.append(video.faulty_frame)
 					else:
@@ -203,10 +210,12 @@ class VideoIter(data.Dataset):
 				self.backup_item = {'video_path': video_path, 'sampled_idxs': sampled_idxs}
 
 		clip_input = np.concatenate(sampled_frames, axis=2)
+		clip_input_enhanced = np.concatenate(sampled_frames_enhanced, axis=2)
 		# apply video augmentation
 		if self.video_transform is not None:
 			clip_input = self.video_transform(clip_input)
-		return clip_input, label, vid_subpath
+			clip_input_enhanced = self.video_transform(clip_input_enhanced)
+		return [clip_input, clip_input_enhanced], label, vid_subpath
 
 
 	def __getitem__(self, index):
@@ -257,6 +266,7 @@ class VideoIter(data.Dataset):
 				except:
 					label = -1
 				video_subpath = line['Video']
+				
 				video_path = os.path.join(video_prefix, video_subpath)
 				if not os.path.exists(video_path):
 					# logging.warning("VideoIter:: >> cannot locate `{}'".format(video_path))
@@ -270,5 +280,5 @@ class VideoIter(data.Dataset):
 				video_list.append(info)
 				if check_video and (i % logging_interval) == 0:
 					logging.info("VideoIter:: - Checking: {:d}/{:d}, \tinfo: {}".format(i, len(lines), info))
-
+		
 		return video_list

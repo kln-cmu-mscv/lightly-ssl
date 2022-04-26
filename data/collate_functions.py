@@ -17,7 +17,10 @@ class BaseSSLCollateFunction(nn.Module):
 
 		batch_size = len(batch)
 
-		transforms = [self.transform(batch[i % batch_size][0]).unsqueeze(0)
+		transforms = [self.transform(batch[i % batch_size][0][0]).unsqueeze(0)
+						for i in range(2 * batch_size)]
+
+		transforms_enhanced = [self.transform(batch[i % batch_size][0][1]).unsqueeze(0)
 						for i in range(2 * batch_size)]
 
 		# list of labels
@@ -26,9 +29,14 @@ class BaseSSLCollateFunction(nn.Module):
 		fnames = [item[2] for item in batch]
 
 		# tuple of transforms
+		# transforms = (
+		# 	torch.cat(transforms[:batch_size], 0),
+		# 	torch.cat(transforms[batch_size:], 0)
+		# )
+
 		transforms = (
-			torch.cat(transforms[:batch_size], 0),
-			torch.cat(transforms[batch_size:], 0)
+			torch.cat(transforms, 0),
+			torch.cat(transforms_enhanced, 0)
 		)
 
 		return transforms, labels, fnames

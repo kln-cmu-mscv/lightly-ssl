@@ -36,7 +36,7 @@ class SimCLR_R3D_Model(pl.LightningModule):
 
     def configure_optimizers(self):
         optim = torch.optim.SGD(
-            self.parameters(), lr=6e-2, momentum=0.9, weight_decay=5e-4
+            self.parameters(), lr=6e-3, momentum=0.9, weight_decay=5e-4, nesterov = True
         )
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
             optim, self.max_epochs

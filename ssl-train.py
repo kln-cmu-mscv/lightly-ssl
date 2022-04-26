@@ -18,6 +18,7 @@ from network.simclr import SimCLR_R3D_Model
 from network.sup_cls import SupCls_R3D_Model
 from network.classifier import Classifier
 from pytorch_lightning.callbacks import ModelCheckpoint
+from pytorch_lightning.plugins import DDPPlugin
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="PyTorch Video Classification Parser")
@@ -25,12 +26,12 @@ if __name__ == "__main__":
     parser.add_argument('--data-root', default="./dataset/ARID", help="path to dataset")
     parser.add_argument('--clip-length', type=int, default=16, help="define the length of each input sample.")
     parser.add_argument('--train-frame-interval', type=int, default=2, help="define the sampling interval between frames.")
-    parser.add_argument('--batch_size', type=int, default=4, help="batch size")
+    parser.add_argument('--batch_size', type=int, default=3, help="batch size")
     parser.add_argument('--num-workers', type=int, default=8, help="batch size")
     parser.add_argument('--end-epoch', type=int, default=1000, help="maxmium number of training epoch")
     parser.add_argument('--resume-epoch', type=int, default=-1, help="resume train")
     parser.add_argument('--random-seed', type=int, default=1, help='random seed (default: 1)')
-    parser.add_argument('--gpus', type=list, default=[0], help='GPU to use')
+    parser.add_argument('--gpus', type=list, default=[0,2], help='GPU to use')
     parser.add_argument('--network', type=str, default='R3D18',help="chose the base network")
     parser.add_argument('--save_checkpoint', type=str, default='./checkpoints',help="save checkpoint")
     parser.add_argument('--lr_base', type=float, default=0.01, help="learning rate")
@@ -69,7 +70,7 @@ if __name__ == "__main__":
                             seed=iter_seed, 
                             data_root=args.data_root,
                             return_item_subpath=True)
-
+    
     # define collate function with different augmentation
     if args.mode == "ssl":
         collate_fn = ARIDSSLCollateFunction(mean=input_conf['mean'], 
@@ -114,11 +115,10 @@ if __name__ == "__main__":
         model = Classifier(backbone, max_epochs, 11)
 
     
-    checkpoint_callback = ModelCheckpoint(dirpath=args.save_checkpoint, every_n_epochs=50)
+    checkpoint_callback = ModelCheckpoint(dirpath=args.save_checkpoint, every_n_epochs=1)
     trainer = pl.Trainer(
-            max_epochs=max_epochs, gpus=args.gpus, progress_bar_refresh_rate=100, callbacks=[checkpoint_callback]
-        )
+            max_epochs=max_epochs, gpus=args.gpus, progress_bar_refresh_rate=100, plugins=DDPPlugin(find_unused_parameters=False),callbacks=[checkpoint_callback])
     trainer.fit(model, dataloader_train_arid)
-    checkpoint_callback.best_model_path
+    #checkpoint_callback.best_model_path
 
 

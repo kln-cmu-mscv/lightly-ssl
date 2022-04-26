@@ -11,7 +11,7 @@ from typing import List
 import torchvision
 import torchvision.transforms as T
 
-def get_arid(data_root='./dataset/ARID', clip_length=8, train_interval=2,
+def get_arid(data_root='./dataset/ARID', video_prefix_enhanced= './dataset/ARID_enhanced', clip_length=8, train_interval=2,
 			mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225],
 			seed=0, return_item_subpath=False, **kwargs):
 	""" data iter for ARID
@@ -20,6 +20,7 @@ def get_arid(data_root='./dataset/ARID', clip_length=8, train_interval=2,
 
 	train_sampler = sampler.RandomSampling(num=clip_length, interval=train_interval, speed=[1.0, 1.0], seed=(seed+0))
 	train = VideoIter(video_prefix=os.path.join(data_root, 'raw', 'train_data'),
+					  video_prefix_enhanced= os.path.join(video_prefix_enhanced,'enhanced_videos'),
 					  csv_list=os.path.join(data_root, 'raw', 'list_cvt', 'ARID1.1_t1_train_pub.csv'),
 					  sampler=train_sampler,
 					  force_color=True,
