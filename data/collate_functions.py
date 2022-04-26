@@ -66,7 +66,7 @@ class BaseCLSCollateFunction(nn.Module):
 
 		batch_size = len(batch)
 
-		transforms = [self.transform(batch[i % batch_size][0]).unsqueeze(0)
+		transforms = [self.transform(batch[i % batch_size][0][0]).unsqueeze(0)
 						for i in range(batch_size)]
 
 		# list of labels

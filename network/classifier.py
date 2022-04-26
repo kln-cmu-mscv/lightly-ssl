@@ -3,6 +3,7 @@ import torch.nn as nn
 import pytorch_lightning as pl
 import lightly
 from lightly.models.utils import deactivate_requires_grad
+from torchmetrics import Accuracy
 
 class Classifier(pl.LightningModule):
     def __init__(self, backbone, max_epochs, num_classes):
@@ -21,6 +22,10 @@ class Classifier(pl.LightningModule):
 
         self.criterion = nn.CrossEntropyLoss()
 
+        # Metrics
+        self.accuracy1 = Accuracy(top_k = 1)
+        self.accuracy2 = Accuracy(top_k = 5)
+
     def forward(self, x):
         y_hat = self.backbone(x).flatten(start_dim=1)
         y_hat = self.fc(y_hat)
@@ -31,6 +36,12 @@ class Classifier(pl.LightningModule):
         y_hat = self.forward(x)
         loss = self.criterion(y_hat, y)
         self.log("train_loss_fc", loss)
+
+        self.accuracy1(nn.functional.softmax(y_hat, dim = -1).detach().cpu(), y.cpu())
+        self.accuracy2(nn.functional.softmax(y_hat, dim = -1).detach().cpu(), y.cpu())
+
+        self.log("train_acc_step top_1: ", self.accuracy1)
+        self.log("train_acc_step top_5: ", self.accuracy2)
         return loss
 
     def training_epoch_end(self, outputs):
@@ -53,6 +64,12 @@ class Classifier(pl.LightningModule):
         _, predicted = torch.max(y_hat, 1)
         num = predicted.shape[0]
         correct = (predicted == y).float().sum()
+
+        self.accuracy1(y_hat.detach().cpu(), y.cpu())
+        self.accuracy2(y_hat.detach().cpu(), y.cpu())
+
+        self.log("val_acc_step top_1: ", self.accuracy1)
+        self.log("val_acc_step top_5: ", self.accuracy2)
         return num, correct
 
     def validation_epoch_end(self, outputs):
@@ -67,6 +84,6 @@ class Classifier(pl.LightningModule):
             self.log("val_acc", acc, on_epoch=True, prog_bar=True)
 
     def configure_optimizers(self):
-        optim = torch.optim.SGD(self.fc.parameters(), lr=30.)
+        optim = torch.optim.SGD(self.fc.parameters(), lr=0.01)
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optim, self.max_epochs)
         return [optim], [scheduler]

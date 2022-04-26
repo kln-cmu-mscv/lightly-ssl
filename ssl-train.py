@@ -26,12 +26,12 @@ if __name__ == "__main__":
     parser.add_argument('--data-root', default="./dataset/ARID", help="path to dataset")
     parser.add_argument('--clip-length', type=int, default=16, help="define the length of each input sample.")
     parser.add_argument('--train-frame-interval', type=int, default=2, help="define the sampling interval between frames.")
-    parser.add_argument('--batch_size', type=int, default=3, help="batch size")
+    parser.add_argument('--batch_size', type=int, default=8, help="batch size")
     parser.add_argument('--num-workers', type=int, default=8, help="batch size")
     parser.add_argument('--end-epoch', type=int, default=1000, help="maxmium number of training epoch")
     parser.add_argument('--resume-epoch', type=int, default=-1, help="resume train")
     parser.add_argument('--random-seed', type=int, default=1, help='random seed (default: 1)')
-    parser.add_argument('--gpus', type=list, default=[0,2], help='GPU to use')
+    parser.add_argument('--gpus', type=list, default=[0], help='GPU to use')
     parser.add_argument('--network', type=str, default='R3D18',help="chose the base network")
     parser.add_argument('--save_checkpoint', type=str, default='./checkpoints',help="save checkpoint")
     parser.add_argument('--lr_base', type=float, default=0.01, help="learning rate")
@@ -42,7 +42,7 @@ if __name__ == "__main__":
 
     # Train SSL or classifier
     parser.add_argument('--mode', type=str, default='ssl',help="Mode to train", choices =["ssl", "cls", "sup"])
-    parser.add_argument('--ssl-ckpt', type=str, default='./lightning_logs/version_4/checkpoints/epoch=124-step=28625.ckpt',help="Path to backbone ckpt file")
+    parser.add_argument('--ssl-ckpt', type=str, default='./lightning_logs/version_1/checkpoints/epoch=14.ckpt',help="Path to backbone ckpt file")
 
     # set args
     args = parser.parse_args()
@@ -98,7 +98,7 @@ if __name__ == "__main__":
 
     if args.mode == "ssl":
         print("Training Embedding Network")
-        model = SimCLR_R3D_Model(net, max_epochs)
+        model = SimCLR_R3D_Model(net, max_epochs, **kwargs)
     
     elif args.mode == "sup":
         print("Training Supervised Network")
@@ -106,7 +106,7 @@ if __name__ == "__main__":
         
     elif args.mode == "cls":
         print("Training Classifier Network")
-        ssl_model = SimCLR_R3D_Model(net, max_epochs)
+        ssl_model = SimCLR_R3D_Model(net, max_epochs, **kwargs)
         ckpt = torch.load(args.ssl_ckpt)
         ssl_model.load_state_dict(ckpt['state_dict'])
         # ssl_model.eval()
